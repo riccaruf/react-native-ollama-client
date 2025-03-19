@@ -10,7 +10,7 @@ export default function ChatScreen() {
   const [response, setResponse] = useState('');
   const [selectedValue, setSelectedValue] = useState('llama3.2:1b');
   
-  const IP_ADDRESS = "192.168.9.77:3000"
+  const IP_ADDRESS = "192.168.1.54:3000"
   
   var [options, setOptions] = useState<{ id: string; name: string }[]>([]);
   var [loading, setLoading] = useState(true);
