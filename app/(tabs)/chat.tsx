@@ -72,15 +72,15 @@ export default function ChatScreen() {
         </View>
         <View style={{ padding: 20 }}>
            
-              <Picker
-                selectedValue={selectedValue}
-                onValueChange={(itemValue) => setSelectedValue(itemValue)}
-              >
-                <Picker.Item label="Seleziona un'opzione" value={null} />
-                {options.map((item) => (
-                  <Picker.Item key={item.id} label={item.name} value={item.id} />
-                ))}
-              </Picker>
+            <Picker
+              selectedValue={selectedValue}
+              onValueChange={(itemValue) => setSelectedValue(itemValue)}
+            >
+              <Picker.Item label="Seleziona un'opzione" value={null} />
+              {options.map((item) => (
+                <Picker.Item key={item.id} label={item.name} value={item.id} />
+              ))}
+            </Picker>
            
         </View>
           
