@@ -16,8 +16,19 @@ export default function ImageUploader(){
   const [selectedValue, setSelectedValue] = useState('llama3.2:1b');
   var [options, setOptions] = useState<{ id: string; name: string }[]>([]); 
   var [loading, setLoading] = useState(true);
-  const [response, setResponse] = useState('');
-
+  
+  var [parsedData, setParsedData] = useState({
+    carbs: '',
+    sugars: '',
+    fibers: '',
+    proteins: '',
+    fats: '',
+    portionSize: '',
+    glycemicIndex: '',
+    ingredients: [],
+    confidence: '',
+    mealName: ''
+  });
 
   useEffect (() => {
       console.log("- use effect function");
@@ -56,6 +67,48 @@ export default function ImageUploader(){
     });
   };
 
+  const nutritionalRegex = {
+    carbs: /Carbohydrates:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
+    sugars: /Sugar:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
+    fibers: /Fiber:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
+    proteins: /Protein:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
+    fats: /Fat:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
+    glycemicIndex: /glycemic\s*index\s*of\s*the\s*meal\s*would\s*be\s*moderate,\s*likely\s*in\s*the\s*range\s*of\s*(\d+\s*to\s*\d+|\d+)/,
+    mealName: /Name\s*of\s*the\s*meal\s*\(in\s*Italian\):\s*"([^"]+)"/,
+    ingredients: /Main\s*ingredients\s*\(in\s*Italian\):\s*([^:]+)(?:\n|$)/,
+    confidence: /confidence\s*of\s*the\s*correctness\s*of\s*this\s*response\s*is\s*(LOW|MEDIUM|HIGH)/,
+  };
+
+  const parseNutritionalInfo = (response) => {
+    const data = {};
+    console.info("- response :",response);
+
+  // Estrazione dei dati usando le regex
+    data.carbs = response.match(nutritionalRegex.carbs);
+    console.info("- carbs found:",data.carbs);
+    data.sugars = response.match(nutritionalRegex.sugars);
+    data.fibers = response.match(nutritionalRegex.fibers);
+    data.proteins = response.match(nutritionalRegex.proteins);
+    data.fats = response.match(nutritionalRegex.fats);
+    data.glycemicIndex = response.match(nutritionalRegex.glycemicIndex);
+    data.ingredients = response.match(nutritionalRegex.ingredients)?.[1]?.split(', ') || [];
+    data.mealName = response.match(nutritionalRegex.mealName)?.[1] || '';
+    data.confidence = response.match(nutritionalRegex.confidence)?.[1] || 'LOW';
+
+  // Restituzione dei dati
+    return {
+      carbs: data.carbs ,
+      sugars: data.sugars,
+      fibers: data.fibers ,
+      proteins: data.proteins ,
+      fats: data.fats,
+      glycemicIndex: data.glycemicIndex ,
+      ingredients: data.ingredients,
+      mealName: data.mealName,
+      confidence: data.confidence,
+      };
+  };
+
   const uploadImages = async () => {
     
     const formData = new FormData();
@@ -63,24 +116,31 @@ export default function ImageUploader(){
     
   
     try {
-      const response1 = await fetch(imageUri);
-      const blob = await response1.blob();
+      setLoading(true);
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
 
-      console.info("- blob:", blob);
+      
       formData.append("images", blob, "image.jpg");
       formData.append("model",JSON.stringify({ model: selectedValue}))
-      const response = await fetch("http://"+IP_ADDRESS+"/api/uploadimage", {
+      
+      const res = await fetch("http://"+IP_ADDRESS+"/api/uploadimage", {
         method: "POST",
         body: formData,
       });
   
-      if (response.ok) {
-        Alert.alert("Successo", "Immagini caricate con successo!");
-      } else {
-        Alert.alert("Errore", "Caricamento fallito");
-      }
+      const data = await res.text();
+      
+      parsedData = parseNutritionalInfo(data);
+      
+      console.info("- parseNutritionalInfo:",parsedData);
+      
+      setParsedData(parsedData);
+      setLoading(false);
+
+      
     } catch (error) {
-      Alert.alert("Errore", "Errore di rete");
+      console.error(error);
     }
   };
   
@@ -88,7 +148,7 @@ export default function ImageUploader(){
     <LinearGradient colors={['#25292e', '#25292e']} style={styles.container}>
        {/* Header */}
        <View style={styles.header}>
-          <Text style={styles.headerText}>DeepSeek Fitness</Text>
+          <Text style={styles.headerText}>Analizzatore</Text>
        </View>
        <View style={{ padding: 20 }}>
            
@@ -96,7 +156,7 @@ export default function ImageUploader(){
             selectedValue={selectedValue}
             onValueChange={(itemValue) => setSelectedValue(itemValue)}
           >
-            <Picker.Item label="Seleziona un'opzione" value={null} />
+            <Picker.Item label="Seleziona un modello Ollama:" value={null} />
             {options.map((item) => (
               <Picker.Item key={item.id} label={item.name} value={item.id} />
             ))}
@@ -115,18 +175,50 @@ export default function ImageUploader(){
             />
           ))}
         </ScrollView>
-        <Button title="Carica Immagini" onPress={uploadImages} />
+        <Button title="Analizza" onPress={uploadImages} />
         <View style={styles.content}>
-            {/* Area messaggi / risposta */}
-            <ScrollView style={styles.chatContainer}>
-              {loading ? (
-                <ActivityIndicator size="large" color="#007bff" />
-              ) : (
-              <Text style={styles.chatText}>
-                {response || "Qui la descrizione dell'immagine caricata:"+selectedValue}
-              </Text>
-              )}
-            </ScrollView>
+            
+          <ScrollView contentContainerStyle={styles.container}>
+            <Text style={styles.title}>{parsedData.mealName}</Text>
+            
+            <Text style={styles.sectionTitle}>Nutritional Information</Text>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.nutrientLabel}>Carbohydrates:</Text>
+              <Text style={styles.nutrientValue}>{parsedData.carbs} grams</Text>
+            </View>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.nutrientLabel}>Sugars:</Text>
+              <Text style={styles.nutrientValue}>{parsedData.sugars} grams</Text>
+            </View>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.nutrientLabel}>Fibers:</Text>
+              <Text style={styles.nutrientValue}>{parsedData.fibers} grams</Text>
+            </View>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.nutrientLabel}>Proteins:</Text>
+              <Text style={styles.nutrientValue}>{parsedData.proteins} grams</Text>
+            </View>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.nutrientLabel}>Fats:</Text>
+              <Text style={styles.nutrientValue}>{parsedData.fats} grams</Text>
+            </View>
+            
+            <Text style={styles.sectionTitle}>Additional Details</Text>
+            <View style={styles.detailContainer}>
+              <Text style={styles.detailLabel}>Portion Size:</Text>
+              <Text style={styles.detailValue}>{parsedData.portionSize} grams</Text>
+            </View>
+            <View style={styles.detailContainer}>
+              <Text style={styles.detailLabel}>Glycemic Index:</Text>
+              <Text style={styles.detailValue}>{parsedData.glycemicIndex}</Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>Main Ingredients</Text>
+            <Text style={styles.ingredients}>{parsedData.ingredients.join(', ')}</Text>
+
+            <Text style={styles.sectionTitle}>Confidence Level</Text>
+            <Text style={styles.confidence}>{parsedData.confidence}</Text>
+          </ScrollView>
         </View>
 
       </View>
@@ -157,6 +249,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: 16,
+    minHeight: 200
   },
   chatContainer: {
     flex: 1,
@@ -186,6 +279,55 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 25,
   },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+    color: '#fff',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginVertical: 5,
+    color: '#fff',
+  },
+  nutrientContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 2,
+    color: '#fff',
+  },
+  nutrientLabel: {
+    fontWeight: '600',
+    color: '#fff',
+  },
+  nutrientValue: {
+    fontStyle: 'italic',
+    color: '#fff',
+  },
+  detailContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 2,
+    color: '#fff',
+  },
+  detailLabel: {
+    fontWeight: '600',
+    color: '#fff',
+  },
+  detailValue: {
+    fontStyle: 'italic',
+    color: 'green'
+  },
+  ingredients: {
+    fontStyle: 'italic',
+    color: '#fff',
+  },
+  confidence: {
+    fontWeight: 'bold',
+    color: 'green',
+  }
 });
 
 
