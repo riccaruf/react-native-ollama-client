@@ -5,7 +5,6 @@ import { Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIn
 import { launchImageLibrary, Asset } from "react-native-image-picker";
 
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 
 
@@ -67,6 +66,7 @@ export default function ImageUploader(){
     });
   };
 
+  /*
   const nutritionalRegex = {
     carbs: /Carbohydrates:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
     sugars: /Sugar:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
@@ -78,22 +78,51 @@ export default function ImageUploader(){
     ingredients: /Main\s*ingredients\s*\(in\s*Italian\):\s*([^:]+)(?:\n|$)/,
     confidence: /confidence\s*of\s*the\s*correctness\s*of\s*this\s*response\s*is\s*(LOW|MEDIUM|HIGH)/,
   };
+  */
 
-  const parseNutritionalInfo = (response) => {
-    const data = {};
+  const nutritionalRegex = {
+    carbs: /Carbohydrates:\s*([^;]+);/i,
+    proteins: /Proteins:\s*([^;]+);/i,
+    fats: /Fats:\s*([^;]+);/i,
+    sugars: /Sugars:\s*([^;]+);/i,
+    fibers: /Fibers:\s*([^;]+);/i,
+    glycemicIndex: /Glycemic\s*([^;]+);/i,
+    ingredients: /Ingredients\s*([^;]+);/i,
+    mealName:/Name:\s*([^;]+);/i,
+    confidence:/Confidence:\s*([^;]+);/i,
+    portionSize:/PortionSize:\s*([^;]+);/i
+
+  };
+
+  const parseNutritionalInfo = (response:any) => {
+    
+    const data = {
+      carbs: '',
+      sugars: '',
+      fibers: '',
+      proteins: '',
+      fats: '',
+      portionSize: '',
+      glycemicIndex: '',
+      ingredients: '',
+      confidence: '',
+      mealName: '',
+    };
+
     console.info("- response :",response);
 
   // Estrazione dei dati usando le regex
-    data.carbs = response.match(nutritionalRegex.carbs);
-    console.info("- carbs found:",data.carbs);
-    data.sugars = response.match(nutritionalRegex.sugars);
-    data.fibers = response.match(nutritionalRegex.fibers);
-    data.proteins = response.match(nutritionalRegex.proteins);
-    data.fats = response.match(nutritionalRegex.fats);
-    data.glycemicIndex = response.match(nutritionalRegex.glycemicIndex);
-    data.ingredients = response.match(nutritionalRegex.ingredients)?.[1]?.split(', ') || [];
+    data.carbs = response.match(nutritionalRegex.carbs)?.[1]||'Not found';
+    data.sugars = response.match(nutritionalRegex.sugars)?.[1]||'Not found';
+    data.fibers = response.match(nutritionalRegex.fibers)?.[1]||'Not found';
+    data.proteins = response.match(nutritionalRegex.proteins)?.[1]||'Not found';
+    data.fats = response.match(nutritionalRegex.fats)?.[1]||'Not found';
+    data.glycemicIndex = response.match(nutritionalRegex.glycemicIndex)?.[1]||'Not found';
+    data.ingredients = response.match(nutritionalRegex.ingredients)?.[1]||'Not found';
     data.mealName = response.match(nutritionalRegex.mealName)?.[1] || '';
     data.confidence = response.match(nutritionalRegex.confidence)?.[1] || 'LOW';
+    data.portionSize = response.match(nutritionalRegex.portionSize)?.[1] || 'LOW';
+    
 
   // Restituzione dei dati
     return {
@@ -106,6 +135,7 @@ export default function ImageUploader(){
       ingredients: data.ingredients,
       mealName: data.mealName,
       confidence: data.confidence,
+      portionSize: data.portionSize
       };
   };
 
@@ -131,7 +161,7 @@ export default function ImageUploader(){
   
       const data = await res.text();
       
-      parsedData = parseNutritionalInfo(data);
+      const parsedData = parseNutritionalInfo(data);
       
       console.info("- parseNutritionalInfo:",parsedData);
       
@@ -184,29 +214,29 @@ export default function ImageUploader(){
             <Text style={styles.sectionTitle}>Nutritional Information</Text>
             <View style={styles.nutrientContainer}>
               <Text style={styles.nutrientLabel}>Carbohydrates:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.carbs} grams</Text>
+              <Text style={styles.nutrientValue}>{parsedData.carbs} </Text>
             </View>
             <View style={styles.nutrientContainer}>
               <Text style={styles.nutrientLabel}>Sugars:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.sugars} grams</Text>
+              <Text style={styles.nutrientValue}>{parsedData.sugars} </Text>
             </View>
             <View style={styles.nutrientContainer}>
               <Text style={styles.nutrientLabel}>Fibers:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.fibers} grams</Text>
+              <Text style={styles.nutrientValue}>{parsedData.fibers} </Text>
             </View>
             <View style={styles.nutrientContainer}>
               <Text style={styles.nutrientLabel}>Proteins:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.proteins} grams</Text>
+              <Text style={styles.nutrientValue}>{parsedData.proteins} </Text>
             </View>
             <View style={styles.nutrientContainer}>
               <Text style={styles.nutrientLabel}>Fats:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.fats} grams</Text>
+              <Text style={styles.nutrientValue}>{parsedData.fats} </Text>
             </View>
             
             <Text style={styles.sectionTitle}>Additional Details</Text>
             <View style={styles.detailContainer}>
               <Text style={styles.detailLabel}>Portion Size:</Text>
-              <Text style={styles.detailValue}>{parsedData.portionSize} grams</Text>
+              <Text style={styles.detailValue}>{parsedData.portionSize} </Text>
             </View>
             <View style={styles.detailContainer}>
               <Text style={styles.detailLabel}>Glycemic Index:</Text>
@@ -214,7 +244,7 @@ export default function ImageUploader(){
             </View>
 
             <Text style={styles.sectionTitle}>Main Ingredients</Text>
-            <Text style={styles.ingredients}>{parsedData.ingredients.join(', ')}</Text>
+            <Text style={styles.ingredients}>{parsedData.ingredients}</Text>
 
             <Text style={styles.sectionTitle}>Confidence Level</Text>
             <Text style={styles.confidence}>{parsedData.confidence}</Text>
@@ -322,9 +352,11 @@ const styles = StyleSheet.create({
   },
   ingredients: {
     fontStyle: 'italic',
+    fontWeight: 'bold',
     color: '#fff',
   },
   confidence: {
+    fontStyle: 'italic',
     fontWeight: 'bold',
     color: 'green',
   }
