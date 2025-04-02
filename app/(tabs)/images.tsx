@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { View, ScrollView, Image, Button, Alert } from "react-native";
-import { Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator,Platform } from 'react-native';
 
 import { launchImageLibrary, Asset } from "react-native-image-picker";
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
+
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+
+import { Buffer } from "buffer";
+import RNBlobUtil from "react-native-blob-util";
 
 
 export default function ImageUploader(){
@@ -53,18 +59,32 @@ export default function ImageUploader(){
     },[]);  
 
 
-  const pickImage = () => {
-    launchImageLibrary({ mediaType: "photo", selectionLimit: 0}, (response) => {
-      if (response.didCancel) return;
-      if (response.errorMessage) {
-        Alert.alert("Errore", response.errorMessage);
-        return;
+    const pickImage = async () => {
+      try {
+        // Controllo della piattaforma
+        if (Platform.OS === "android" || Platform.OS === "ios") {
+          // Richiesta di permesso su dispositivi mobili
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== "granted") {
+            Alert.alert("Permesso negato", "È necessario il permesso per accedere alla galleria.");
+            return;
+          }
+        }
+  
+        // Selezione dell'immagine (funziona su tutte le piattaforme)
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsMultipleSelection: Platform.OS !== "web", // Multipla solo su mobile
+          quality: 1,
+        });
+  
+        if (!result.canceled) {
+          setImages(result.assets || [result]);
+        }
+      } catch (error) {
+        console.error("Errore durante la selezione delle immagini:", error);
       }
-      if (response.assets) {
-        setImages([...images, ...response.assets]);
-      }
-    });
-  };
+    };
 
   /*
   const nutritionalRegex = {
@@ -86,11 +106,12 @@ export default function ImageUploader(){
     fats: /Fats:\s*([^;]+);/i,
     sugars: /Sugars:\s*([^;]+);/i,
     fibers: /Fibers:\s*([^;]+);/i,
-    glycemicIndex: /Glycemic\s*([^;]+);/i,
-    ingredients: /Ingredients\s*([^;]+);/i,
-    mealName:/Name:\s*([^;]+);/i,
+    glycemicIndex: /GlycemicIndex:\s*([^;]+);/i,
+    ingredients: /Ingredients:\s*([^\.]+)\./i,
+    mealName:/MealName:\s*([^;]+);/i,
     confidence:/Confidence:\s*([^;]+);/i,
     portionSize:/PortionSize:\s*([^;]+);/i
+    
 
   };
 
@@ -139,40 +160,83 @@ export default function ImageUploader(){
       };
   };
 
-  const uploadImages = async () => {
-    
-    const formData = new FormData();
-    const imageUri = images[0].uri;
-    
+
   
+  const uploadImages = async () => {
     try {
       setLoading(true);
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-
-      
-      formData.append("images", blob, "image.jpg");
-      formData.append("model",JSON.stringify({ model: selectedValue}))
-      
-      const res = await fetch("http://"+IP_ADDRESS+"/api/uploadimage", {
+  
+      const imageUri = images[0]?.uri;
+      if (!imageUri) {
+        console.error("Nessuna immagine selezionata.");
+        setLoading(false);
+        return;
+      }
+  
+      console.log("- Immagine selezionata:", imageUri);
+  
+      const formData = new FormData();
+  
+      // Gestione Web
+      if (Platform.OS === "web") {
+        try {
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          formData.append("images", blob, "image.jpg");
+        } catch (error) {
+          console.error("Errore durante la creazione del blob (web):", error);
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Gestione Mobile (Android/iOS)
+        try {
+          const fileUri = imageUri.startsWith("file://") ? imageUri : `file://${imageUri}`;
+          const fileData = await FileSystem.readAsStringAsync(fileUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+  
+          // Crea il file da base64 senza passare per ArrayBuffer
+          const base64Data = `data:image/jpeg;base64,${fileData}`;
+          
+          formData.append("images", {
+            uri: base64Data,
+            type: "image/jpeg",
+            name: "image.jpg",
+          });
+        } catch (error) {
+          console.error("Errore durante la lettura dell'immagine (mobile):", error);
+          setLoading(false);
+          return;
+        }
+      }
+  
+      // Aggiungi il modello selezionato al formData
+      formData.append("model", JSON.stringify({ model: selectedValue }));
+  
+      // Invia la richiesta al server
+      const res = await fetch(`http://${IP_ADDRESS}/api/uploadimage`, {
         method: "POST",
         body: formData,
       });
   
+      if (!res.ok) {
+        throw new Error(`Errore di caricamento: ${res.status} ${res.statusText}`);
+      }
+  
       const data = await res.text();
-      
       const parsedData = parseNutritionalInfo(data);
-      
-      console.info("- parseNutritionalInfo:",parsedData);
-      
+  
+      console.info("- Risposta dal server:", parsedData);
       setParsedData(parsedData);
-      setLoading(false);
-
-      
     } catch (error) {
-      console.error(error);
+      console.error("Errore durante l'upload dell'immagine:", error);
+    } finally {
+      setLoading(false);
     }
   };
+  
+
   
   return (
     <LinearGradient colors={['#25292e', '#25292e']} style={styles.container}>
@@ -194,17 +258,17 @@ export default function ImageUploader(){
            
        </View>
 
-      <View style={{ flex: 1, padding: 10 }}>
+      <View style={{ flex: 1, padding: 20 }}>
         <Button title="Seleziona Immagini" onPress={pickImage} />
-        <ScrollView horizontal style={{ marginVertical: 10 }}>
+        <View style={{ marginVertical: 10, alignSelf: "center" }}>
           {images.map((image, index) => (
             <Image
               key={index}
               source={{ uri: image.uri }}
-              style={{ width: 100, height: 100, marginRight: 10 }}
+              style={{ width: 300, height: 200, marginRight: 10 }}
             />
           ))}
-        </ScrollView>
+        </View>
         <Button title="Analizza" onPress={uploadImages} />
         <View style={styles.content}>
             
@@ -238,16 +302,20 @@ export default function ImageUploader(){
               <Text style={styles.detailLabel}>Portion Size:</Text>
               <Text style={styles.detailValue}>{parsedData.portionSize} </Text>
             </View>
-            <View style={styles.detailContainer}>
-              <Text style={styles.detailLabel}>Glycemic Index:</Text>
-              <Text style={styles.detailValue}>{parsedData.glycemicIndex}</Text>
+            <View style={styles.glicemicContainer}>
+              <Text style={styles.glicemicLabel}>Glycemic Index:</Text>
+              <Text style={styles.glicemicValue}>{parsedData.glycemicIndex}</Text>
+            </View>
+            
+            <Text style={styles.sectionTitle}>Main Ingredients</Text>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.ingredients}>{parsedData.ingredients}</Text>
             </View>
 
-            <Text style={styles.sectionTitle}>Main Ingredients</Text>
-            <Text style={styles.ingredients}>{parsedData.ingredients}</Text>
-
             <Text style={styles.sectionTitle}>Confidence Level</Text>
-            <Text style={styles.confidence}>{parsedData.confidence}</Text>
+            <View style={styles.nutrientContainer}>
+              <Text style={styles.confidence}>{parsedData.confidence}</Text>
+            </View>
           </ScrollView>
         </View>
 
@@ -315,45 +383,70 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
     color: '#fff',
+    backgroundColor: '#3b5998'
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    justifyContent: 'space-evenly',
     marginVertical: 5,
     color: '#fff',
+    textAlign: "center",
+    backgroundColor: '#333'
   },
   nutrientContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
+    marginVertical: 2,
+    color: '#fff',
+    fontSize: 20
+  },
+  glicemicContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
     marginVertical: 2,
     color: '#fff',
   },
   nutrientLabel: {
     fontWeight: '600',
     color: '#fff',
+    fontSize: 20
   },
   nutrientValue: {
     fontStyle: 'italic',
-    color: '#fff',
+    color: 'yellow',
+    fontSize: 20
   },
   detailContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     marginVertical: 2,
     color: '#fff',
   },
   detailLabel: {
     fontWeight: '600',
     color: '#fff',
+    fontSize: 20
   },
   detailValue: {
     fontStyle: 'italic',
-    color: 'green'
+    color: 'yellow',
+    fontSize: 20
+  },
+  glicemicLabel: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  glicemicValue: {
+    fontStyle: 'italic',
+    color: 'green',
+    fontSize: 30
   },
   ingredients: {
     fontStyle: 'italic',
     fontWeight: 'bold',
-    color: '#fff',
+    color: 'yellow'
   },
   confidence: {
     fontStyle: 'italic',
