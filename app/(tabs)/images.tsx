@@ -2,25 +2,23 @@ import React, { useState, useEffect } from "react";
 import { View, ScrollView, Image, Button, Alert } from "react-native";
 import { Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator,Platform } from 'react-native';
 
-import { launchImageLibrary, Asset } from "react-native-image-picker";
-
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 
-import { Buffer } from "buffer";
-import RNBlobUtil from "react-native-blob-util";
-
 
 export default function ImageUploader(){
 
   const [images, setImages] = useState<Asset[]>([]);
   const IP_ADDRESS = "192.168.1.54:3000"
-  const [selectedValue, setSelectedValue] = useState('llama3.2:1b');
+  const [selectedValue, setSelectedValue] = useState('llava:latest');
   var [options, setOptions] = useState<{ id: string; name: string }[]>([]); 
   var [loading, setLoading] = useState(true);
+  const [customQuantity, setCustomQuantity] = useState('');
+
+  
   
   var [parsedData, setParsedData] = useState({
     carbs: '',
@@ -34,6 +32,13 @@ export default function ImageUploader(){
     confidence: '',
     mealName: ''
   });
+
+  const handleQuantityChange = (text:any) => {
+    // Solo numeri positivi
+    if (/^\d*$/.test(text)) {
+      setCustomQuantity(text);
+    }
+  };
 
   useEffect (() => {
       console.log("- use effect function");
@@ -86,20 +91,6 @@ export default function ImageUploader(){
       }
     };
 
-  /*
-  const nutritionalRegex = {
-    carbs: /Carbohydrates:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
-    sugars: /Sugar:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
-    fibers: /Fiber:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
-    proteins: /Protein:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
-    fats: /Fat:\s*(\d+-\d+\s*grams|\d+\s*grams)/,
-    glycemicIndex: /glycemic\s*index\s*of\s*the\s*meal\s*would\s*be\s*moderate,\s*likely\s*in\s*the\s*range\s*of\s*(\d+\s*to\s*\d+|\d+)/,
-    mealName: /Name\s*of\s*the\s*meal\s*\(in\s*Italian\):\s*"([^"]+)"/,
-    ingredients: /Main\s*ingredients\s*\(in\s*Italian\):\s*([^:]+)(?:\n|$)/,
-    confidence: /confidence\s*of\s*the\s*correctness\s*of\s*this\s*response\s*is\s*(LOW|MEDIUM|HIGH)/,
-  };
-  */
-
   const nutritionalRegex = {
     carbs: /Carbohydrates:\s*([^;]+);/i,
     proteins: /Proteins:\s*([^;]+);/i,
@@ -111,8 +102,6 @@ export default function ImageUploader(){
     mealName:/MealName:\s*([^;]+);/i,
     confidence:/Confidence:\s*([^;]+);/i,
     portionSize:/PortionSize:\s*([^;]+);/i
-    
-
   };
 
   const parseNutritionalInfo = (response:any) => {
@@ -173,7 +162,7 @@ export default function ImageUploader(){
         return;
       }
   
-      console.log("- Immagine selezionata:", imageUri);
+      //console.log("- Immagine selezionata:", imageUri);
   
       const formData = new FormData();
   
@@ -213,6 +202,7 @@ export default function ImageUploader(){
   
       // Aggiungi il modello selezionato al formData
       formData.append("model", JSON.stringify({ model: selectedValue }));
+      formData.append("customQuantity",JSON.stringify({ customQuantity: customQuantity }))
   
       // Invia la richiesta al server
       const res = await fetch(`http://${IP_ADDRESS}/api/uploadimage`, {
@@ -244,11 +234,12 @@ export default function ImageUploader(){
        <View style={styles.header}>
           <Text style={styles.headerText}>Analizzatore</Text>
        </View>
-       <View style={{ padding: 20 }}>
+       <View style={{ padding: 20}}>
            
           <Picker
             selectedValue={selectedValue}
             onValueChange={(itemValue) => setSelectedValue(itemValue)}
+            
           >
             <Picker.Item label="Seleziona un modello Ollama:" value={null} />
             {options.map((item) => (
@@ -269,54 +260,69 @@ export default function ImageUploader(){
             />
           ))}
         </View>
+        
+        <Text style={styles.title}>Custom Quantity:</Text>
+        <TextInput
+          style={styles.detailValue}
+          placeholder=""
+          keyboardType="numeric"
+          value={customQuantity}
+          onChangeText={handleQuantityChange}
+        />
+
+
         <Button title="Analizza" onPress={uploadImages} />
         <View style={styles.content}>
-            
-          <ScrollView contentContainerStyle={styles.container}>
-            <Text style={styles.title}>{parsedData.mealName}</Text>
-            
-            <Text style={styles.sectionTitle}>Nutritional Information</Text>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.nutrientLabel}>Carbohydrates:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.carbs} </Text>
-            </View>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.nutrientLabel}>Sugars:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.sugars} </Text>
-            </View>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.nutrientLabel}>Fibers:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.fibers} </Text>
-            </View>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.nutrientLabel}>Proteins:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.proteins} </Text>
-            </View>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.nutrientLabel}>Fats:</Text>
-              <Text style={styles.nutrientValue}>{parsedData.fats} </Text>
-            </View>
-            
-            <Text style={styles.sectionTitle}>Additional Details</Text>
-            <View style={styles.detailContainer}>
-              <Text style={styles.detailLabel}>Portion Size:</Text>
-              <Text style={styles.detailValue}>{parsedData.portionSize} </Text>
-            </View>
-            <View style={styles.glicemicContainer}>
-              <Text style={styles.glicemicLabel}>Glycemic Index:</Text>
-              <Text style={styles.glicemicValue}>{parsedData.glycemicIndex}</Text>
-            </View>
-            
-            <Text style={styles.sectionTitle}>Main Ingredients</Text>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.ingredients}>{parsedData.ingredients}</Text>
-            </View>
+          {loading ? (
+            <ActivityIndicator size="large" color="#6200ee" />
+          ) : ( 
+            <ScrollView contentContainerStyle={[styles.container,
+              Platform.OS === 'web' ? styles.container_web : styles.container_android
+              ]}>
+              <Text style={styles.title}>{parsedData.mealName}</Text>
+              <Text style={styles.sectionTitle}>Nutritional Information</Text>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.nutrientLabel}>Carbohydrates:</Text>
+                <Text style={styles.nutrientValue}>{parsedData.carbs} </Text>
+              </View>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.nutrientLabel}>Sugars:</Text>
+                <Text style={styles.nutrientValue}>{parsedData.sugars} </Text>
+              </View>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.nutrientLabel}>Fibers:</Text>
+                <Text style={styles.nutrientValue}>{parsedData.fibers} </Text>
+              </View>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.nutrientLabel}>Proteins:</Text>
+                <Text style={styles.nutrientValue}>{parsedData.proteins} </Text>
+              </View>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.nutrientLabel}>Fats:</Text>
+                <Text style={styles.nutrientValue}>{parsedData.fats} </Text>
+              </View>
+              
+              <Text style={styles.sectionTitle}>Additional Details</Text>
+              <View style={styles.detailContainer}>
+                <Text style={styles.detailLabel}>Portion Size:</Text>
+                <Text style={styles.detailValue}>{parsedData.portionSize} </Text>
+              </View>
+              <View style={styles.glicemicContainer}>
+                <Text style={styles.glicemicLabel}>Glycemic Index:</Text>
+                <Text style={styles.glicemicValue}>{parsedData.glycemicIndex}</Text>
+              </View>
+              
+              <Text style={styles.sectionTitle}>Main Ingredients</Text>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.ingredients}>{parsedData.ingredients}</Text>
+              </View>
 
-            <Text style={styles.sectionTitle}>Confidence Level</Text>
-            <View style={styles.nutrientContainer}>
-              <Text style={styles.confidence}>{parsedData.confidence}</Text>
-            </View>
-          </ScrollView>
+              <Text style={styles.sectionTitle}>Confidence Level</Text>
+              <View style={styles.nutrientContainer}>
+                <Text style={styles.confidence}>{parsedData.confidence}</Text>
+              </View>
+            </ScrollView>
+          )}
         </View>
 
       </View>
@@ -329,9 +335,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#25292e',
     alignItems: 'stretch',
+    padding: 10,
+  },
+  container_webStyle: {
+    padding: 20, // Ad esempio
+    justifyContent: 'center',
+  },
+  container_mobileStyle: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: 16,
+    minHeight: 200
   },
   safeArea: {
-    flex: 1,
+    flexGrow: 1,
   },
   header: {
     padding: 16,
@@ -343,14 +363,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  content: {
-    flex: 1,
-    justifyContent: 'space-between',
-    padding: 16,
-    minHeight: 200
-  },
+  
   chatContainer: {
-    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.8)',
     borderRadius: 12,
     padding: 16,
@@ -368,7 +382,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   textInput: {
-    flex: 1,
     height: 40,
     color: '#333',
   },
@@ -395,6 +408,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#333'
   },
   nutrientContainer: {
+    
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     marginVertical: 2,
@@ -402,12 +416,14 @@ const styles = StyleSheet.create({
     fontSize: 20
   },
   glicemicContainer: {
+    
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     marginVertical: 2,
     color: '#fff',
   },
   nutrientLabel: {
+    
     fontWeight: '600',
     color: '#fff',
     fontSize: 20
@@ -424,11 +440,13 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   detailLabel: {
+   
     fontWeight: '600',
     color: '#fff',
     fontSize: 20
   },
   detailValue: {
+    
     fontStyle: 'italic',
     color: 'yellow',
     fontSize: 20
@@ -439,11 +457,13 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   glicemicValue: {
+   
     fontStyle: 'italic',
     color: 'green',
     fontSize: 30
   },
   ingredients: {
+   
     fontStyle: 'italic',
     fontWeight: 'bold',
     color: 'yellow'
