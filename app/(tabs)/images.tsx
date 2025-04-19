@@ -12,7 +12,7 @@ import * as FileSystem from "expo-file-system";
 export default function ImageUploader(){
 
   const [images, setImages] = useState<Asset[]>([]);
-  const IP_ADDRESS = "192.168.1.54:3000"
+  const IP_ADDRESS = "192.168.1.57:3000"
   const [selectedValue, setSelectedValue] = useState('llava:latest');
   var [options, setOptions] = useState<{ id: string; name: string }[]>([]); 
   var [loading, setLoading] = useState(true);
